@@ -217,7 +217,24 @@ async fn handler(
     }
 
     let mut resp = String::new();
-    resp.push_str("Hello, I am a [code review bot](https://github.com/flows-network/github-pr-summary/) on [flows.network](https://flows.network/). Here are my reviews of code commits in this PR.\n\n------\n\n");
+    let alexQuotes = [
+         "I've delved into the code, and I'm ready with my findings! 🕵️‍♂️",
+        "Code analysis complete! Time to unveil the results. 🧐",
+        "The code has been thoroughly inspected. Ready for the verdict! ⚖️",
+        "I've reviewed the code with a fine-tooth comb. The report is coming up! 🧔",
+        "Code scrutiny, check! Now, it's time to spill the beans. 📜",
+        "Hold onto your seats! The code review results are in. 🪑",
+        "I've handled the code. Results are brewing! ☕",
+        "Code analysis is my forte. Brace yourself for the findings! 📊",
+        "The code has been cracked open. Ready to share the insights! 🔓",
+        "This code has been given the royal treatment. Results fit for a king! 👑"
+    ];
+    // Randomly select a quote
+    let random_index = rand::thread_rng().gen_range(0..alexQuotes.len());
+    let selected_quote = &alexQuotes[random_index];
+
+    resp.push_str("\n\n------\n\n");
+    resp.push_str(&format!("{} \n\n Regards,\n Alex, The PR Reviewer!🧐", selected_quote));
     if reviews.len() > 1 {
         log::debug!("Sending all reviews to OpenAI for summarization");
         let co = ChatOptions {
