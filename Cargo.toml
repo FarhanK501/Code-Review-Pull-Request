@@ -21,3 +21,4 @@ openai-flows = "0.7"
 words-count = "0.1.4"
 http_req_wasi = { version = "0.10.2", features = ["wasmedge_ssl"] }
 log = "0.4"
+rand = "0.8"
