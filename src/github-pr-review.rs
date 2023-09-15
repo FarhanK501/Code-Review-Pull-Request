@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use rand::Rng; // Import the Rng trait
+use rand::Rng;
 use flowsnet_platform_sdk::logger;
 use github_flows::{
     get_octo, listen_to_event,
