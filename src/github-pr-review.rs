@@ -1,15 +1,11 @@
+use rand::Rng;
 use dotenv::dotenv;
-use rand::Rng; // Import the Rng trait
 use flowsnet_platform_sdk::logger;
 use github_flows::{
     get_octo, listen_to_event,
     octocrab::models::events::payload::{IssueCommentEventAction, PullRequestEventAction},
     octocrab::models::CommentId,
     EventPayload, GithubLogin
-};
-use http_req::{
-    request::{Method, Request},
-    uri::Uri,
 };
 use openai_flows::{
     chat::{ChatModel, ChatOptions},
@@ -20,8 +16,8 @@ use std::env;
 //  The soft character limit of the input context size
 //   the max token size or word count for GPT4 is 8192
 //   the max token size or word count for GPT35Turbo is 4096
-static CHAR_SOFT_LIMIT: usize = 9000;
-static MODEL: ChatModel = ChatModel::GPT35Turbo;
+static CHAR_SOFT_LIMIT : usize = 9000;
+static MODEL : ChatModel = ChatModel::GPT35Turbo;
 // static MODEL : ChatModel = ChatModel::GPT4;
 
 #[no_mangle]
@@ -29,14 +25,13 @@ static MODEL: ChatModel = ChatModel::GPT35Turbo;
 pub async fn run() -> anyhow::Result<()> {
     dotenv().ok();
     logger::init();
-    log::debug!("Running function at github-pr-review/main");
+    log::debug!("Running github-pr-summary/main");
 
-    let owner = "Alex the great".to_string();
+    let owner = env::var("github_owner").unwrap_or("juntao".to_string());
     let repo = env::var("github_repo").unwrap_or("test".to_string());
-    let trigger_phrase = env::var("trigger_phrase").unwrap_or("flows review".to_string());
+    let trigger_phrase = env::var("trigger_phrase").unwrap_or("flows summarize".to_string());
 
     let events = vec!["pull_request", "issue_comment"];
-    println!("MAGIC");
     listen_to_event(&GithubLogin::Default, &owner, &repo, events, |payload| {
         handler(
             &owner,
@@ -56,8 +51,7 @@ async fn handler(
     trigger_phrase: &str,
     payload: EventPayload,
 ) {
-    // log::debug!("Received payload: {:?}", payload);
-    let mut new_commit: bool = false;
+    let mut new_commit : bool = false;
     let (title, pull_number, _contributor) = match payload {
         EventPayload::PullRequestEvent(e) => {
             if e.action == PullRequestEventAction::Opened {
@@ -95,7 +89,7 @@ async fn handler(
             };
 
             if !body.to_lowercase().contains(&trigger_phrase.to_lowercase()) {
-                log::info!("Ignore the comment without magic words");
+                log::info!("Ignore the comment without the magic words");
                 return;
             }
 
@@ -103,11 +97,6 @@ async fn handler(
         }
         _ => return,
     };
-
-    let chat_id = format!("PR#{}", pull_number);
-    let system = &format!("You are a senior software engineer and developer. You are funny and sarcastic, you always reply back with some sarcastic and funny comments like a senior software engineer, you will review a source code file and its patch related to the subject of \"{}\".", title);
-    let mut openai = OpenAIFlows::new();
-    openai.set_retry_times(3);
 
     let octo = get_octo(&GithubLogin::Default);
     let issues = octo.issues(owner, repo);
@@ -129,26 +118,28 @@ async fn handler(
             }
         }
     } else {
-       // PR OPEN or Trigger phrase: create a new comment
-        let bot_name = "Alex"; // Replace with your custom bot name
-        let bot_image_url = "https://profile-images.xing.com/images/74f0caacccec8c45c96cf0368b7db2b8-1/alexander-eisen.256x256.jpg";
+        // PR OPEN or Trigger phrase: create a new comment
+        let bot_name = "Alex the great!"; // Replace with your custom bot name
+        // let bot_image_url = "https://profile-images.xing.com/images/74f0caacccec8c45c96cf0368b7db2b8-1/alexander-eisen.256x256.jpg";
         let quotes = [
-            "I'll dive into this code like a dolphin in a sea of bits. BRB!",
-            "Analyzing code is my cardio. You enjoy that coffee break!",
-            "I'll review this code at warp speed. Time for a coffee warp for you!",
-            "Code review initiated! I'm the bot you're looking for. Go sip some coffee.",
-            "This code's secrets are about to be revealed, like a magician pulling a rabbit out of a hat. Enjoy your coffee!",
-            "Hold onto your hats! CodeBot is on the case. Meanwhile, you enjoy your coffee.",
-            "I'll handle the code; you handle the caffeine. Meet you on the other side!",
-            "Analyzing code is my jam. You? Coffee, perhaps? I've got this!",
-            "Let's crack this code like a nut. While I code-crack, you coffee-sip!",
-            "This code is about to get the royal treatment. While I work my magic, go enjoy a royal coffee!"
+           "I'll dive into this code like a 🐬 dolphin in a sea of bits. BRB! 🚀",
+            "Analyzing code is my cardio. You enjoy that ☕ coffee break! 😄",
+            "I'll review this code at warp speed. Time for a ☕ coffee warp for you! ⚡",
+            "Code review initiated! I'm the bot you're looking for. Go sip some ☕ coffee. 🤖",
+            "This code's secrets are about to be revealed, like a magician 🎩 pulling a rabbit out of a hat. Enjoy your ☕ coffee! 🎩",
+            "Hold onto your hats! CodeBot is on the case. Meanwhile, you enjoy your ☕ coffee. 🎩",
+            "I'll handle the code; you handle the caffeine. Meet you on the other side! ☕",
+            "Analyzing code is my jam. You? Coffee, perhaps? I've got this! ☕",
+            "Let's crack this code like a nut. While I code-crack, you coffee-sip! 🌰 ☕",
+            "This code is about to get the royal treatment. While I work my magic, go enjoy a royal ☕ coffee! 👑"
+
         ];
         let random_index = rand::thread_rng().gen_range(0..quotes.len());
         let random_quote = &quotes[random_index];
 
                                                  
         match issues.create_comment(pull_number, format!("Hey there, I'm {}. {}\n\n", bot_name, random_quote)).await {
+            Ok(comment) => {
             Ok(comment) => {
                 comment_id = comment.id;
             }
@@ -161,93 +152,95 @@ async fn handler(
     if comment_id == 0u64.into() { return; }
 
     let pulls = octo.pulls(owner, repo);
-    let mut resp = String::new();
-    resp.push_str("\n");
-
-    match pulls.list_files(pull_number).await {
-        Ok(files) => {
-            for f in files.items {
-                let filename = &f.filename;
-                if filename.ends_with(".md") || filename.ends_with(".js") || filename.ends_with(".css") || filename.ends_with(".html") || filename.ends_with(".htm") {
-                    continue;
-                }
-
-                // The f.raw_url is a redirect. So, we need to construct our own here.
-                let contents_url = f.contents_url.as_str();
-                if contents_url.len() < 40 { continue; }
-                let hash = &contents_url[(contents_url.len() - 40)..];
-                let raw_url = format!(
-                    "https://raw.githubusercontent.com/{owner}/{repo}/{}/{}", hash, filename
-                );
-                let file_uri = Uri::try_from(raw_url.as_str()).unwrap();
-                let mut writer = Vec::new();
-                match Request::new(&file_uri)
-                    .method(Method::GET)
-                    .header("Accept", "plain/text")
-                    .header("User-Agent", "Flows Network Connector")
-                    .send(&mut writer)
-                    .map_err(|_e| {}) {
-                        Err(_e) => {
-                            log::error!("Cannot get file");
-                            continue;
-                        }
-                        _ => {}
-                }
-                let file_as_text = String::from_utf8_lossy(&writer);
-                let t_file_as_text = truncate(&file_as_text, CHAR_SOFT_LIMIT);
-
-                resp.push_str("## [");
-                resp.push_str(filename);
-                resp.push_str("](");
-                resp.push_str(f.blob_url.as_str());
-                resp.push_str(")\n\n");
-
-                log::debug!("Sending file to OpenAI: {}", filename);
-                let co = ChatOptions {
-                    model: MODEL,
-                    restart: true,
-                    system_prompt: Some(system),
-                };
-                let question = "Review the following source code and look for potential problems. The code might be truncated. So, do NOT comment on the completeness of the source code.\n\n".to_string() + t_file_as_text;
-                match openai.chat_completion(&chat_id, &question, &co).await {
-                    Ok(r) => {
-                        resp.push_str(&r.choice);
-                        resp.push_str("\n\n");
-                        log::debug!("Received OpenAI resp for file: {}", filename);
-                    }
-                    Err(e) => {
-                        log::error!("OpenAI returns error for file review for {}: {}", filename, e);
-                    }
-                }
-
-                log::debug!("Sending patch to OpenAI: {}", filename);
-                let co = ChatOptions {
-                    model: MODEL,
-                    restart: false,
-                    system_prompt: Some(system),
-                };
-                let patch_as_text = f.patch.unwrap_or("".to_string());
-                let t_patch_as_text = truncate(&patch_as_text, CHAR_SOFT_LIMIT);
-                let question = "The following is a patch. Please summarize key changes.\n\n".to_string() + t_patch_as_text;
-                match openai.chat_completion(&chat_id, &question, &co).await {
-                    Ok(r) => {
-                        resp.push_str(&r.choice);
-                        resp.push_str("\n\n");
-                        log::debug!("Received OpenAI resp for patch: {}", filename);
-                    }
-                    Err(e) => {
-                        log::error!("OpenAI returns error for patch review for {}: {}", filename, e);
-                    }
-                }
+    let patch_as_text = pulls.get_patch(pull_number).await.unwrap();
+    let mut current_commit = String::new();
+    let mut commits: Vec<String> = Vec::new();
+    for line in patch_as_text.lines() {
+        if line.starts_with("From ") {
+            // Detected a new commit
+            if !current_commit.is_empty() {
+                // Store the previous commit
+                commits.push(current_commit.clone());
             }
-        },
-        Err(_error) => {
-            log::error!("Cannot get file list");
+            // Start a new commit
+            current_commit.clear();
+        }
+        // Append the line to the current commit if the current commit is less than CHAR_SOFT_LIMIT
+        if current_commit.len() < CHAR_SOFT_LIMIT {
+            current_commit.push_str(line);
+            current_commit.push('\n');
+        }
+    }
+    if !current_commit.is_empty() {
+        // Store the last commit
+        commits.push(current_commit.clone());
+    }
+
+    if commits.is_empty() {
+        log::error!("Cannot parse any commit from the patch file");
+        return;
+    }
+
+    let chat_id = format!("PR#{pull_number}");
+    let system = &format!("You are a senior software engineer and developer. You are funny and sarcastic, you always reply back with some sarcastic and funny comments like a senior software engineer, you will review a source code file and its patch related to the subject of \"{}\".", title);
+    let mut openai = OpenAIFlows::new();
+    openai.set_retry_times(3);
+
+    let mut reviews: Vec<String> = Vec::new();
+    let mut reviews_text = String::new();
+    for (_i, commit) in commits.iter().enumerate() {
+        let commit_hash = &commit[5..45];
+        log::debug!("Sending patch to OpenAI: {}", commit_hash);
+        let co = ChatOptions {
+            model: MODEL,
+            restart: true,
+            system_prompt: Some(system),
+        };
+        let question = "The following is a GitHub patch. Please summarize the key changes and identify potential problems. Start with the most important findings.\n\n".to_string() + truncate(commit, CHAR_SOFT_LIMIT);
+        match openai.chat_completion(&chat_id, &question, &co).await {
+            Ok(r) => {
+                if reviews_text.len() < CHAR_SOFT_LIMIT {
+                    reviews_text.push_str("------\n");
+                    reviews_text.push_str(&r.choice);
+                    reviews_text.push_str("\n");
+                }
+                let mut review = String::new();
+                review.push_str(&format!("### [Commit {commit_hash}](https://github.com/{owner}/{repo}/pull/{pull_number}/commits/{commit_hash})\n"));
+                review.push_str(&r.choice);
+                review.push_str("\n\n");
+                reviews.push(review);
+                log::debug!("Received OpenAI resp for patch: {}", commit_hash);
+            }
+            Err(e) => {
+                log::error!("OpenAI returned an error for commit {commit_hash}: {}", e);
+            }
         }
     }
 
-    resp.push_str("All done! 🚀 Time for some programming wisdom:\n\n");
-    resp.push_str("> \"Clean code always looks like it was written by someone who cares.\" - Robert C. Martin (Uncle Bob)\n");
+    let mut resp = String::new();
+    resp.push_str("Hello, I am a [code review bot](https://github.com/flows-network/github-pr-summary/) on [flows.network](https://flows.network/). Here are my reviews of code commits in this PR.\n\n------\n\n");
+    if reviews.len() > 1 {
+        log::debug!("Sending all reviews to OpenAI for summarization");
+        let co = ChatOptions {
+            model: MODEL,
+            restart: true,
+            system_prompt: Some(system),
+        };
+        let question = "Here is a set of summaries for software source code patches. Each summary starts with a ------ line. Please write an overall summary considering all the individual summary. Please present the potential issues and errors first, following by the most important findings, in your summary.\n\n".to_string() + &reviews_text;
+        match openai.chat_completion(&chat_id, &question, &co).await {
+            Ok(r) => {
+                resp.push_str(&r.choice);
+                resp.push_str("\n\n## Details\n\n");
+                log::debug!("Received the overall summary");
+            }
+            Err(e) => {
+                log::error!("OpenAI returned an error for the overall summary: {}", e);
+            }
+        }
+    }
+    for (_i, review) in reviews.iter().enumerate() {
+        resp.push_str(review);
+    }
 
     // Send the entire response to GitHub PR
     // issues.create_comment(pull_number, resp).await.unwrap();
