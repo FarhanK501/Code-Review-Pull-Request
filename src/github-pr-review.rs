@@ -140,7 +140,6 @@ async fn handler(
                                                  
         match issues.create_comment(pull_number, format!("Hey there, I'm {}. {}\n\n", bot_name, random_quote)).await {
             Ok(comment) => {
-            Ok(comment) => {
                 comment_id = comment.id;
             }
             Err(error) => {
