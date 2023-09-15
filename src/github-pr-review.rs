@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use rand::Rng;
+use rand::Rng; // Import the Rng trait
 use flowsnet_platform_sdk::logger;
 use github_flows::{
     get_octo, listen_to_event,
@@ -147,7 +147,8 @@ async fn handler(
         let random_index = rand::thread_rng().gen_range(0..quotes.len());
         let random_quote = &quotes[random_index];
 
-        match issues.create_comment(pull_number, format!("![{}]({})\n\nHey there, I'm {}. {}\n\n", bot_name, bot_image_url, bot_name, random_quote)).await {
+                                                 
+        match issues.create_comment(pull_number, format!("Hey there, I'm {}. {}\n\n", bot_name, random_quote)).await {
             Ok(comment) => {
                 comment_id = comment.id;
             }
